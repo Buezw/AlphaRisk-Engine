@@ -1,6 +1,5 @@
 import sqlite3
 import logging
-from typing import List, Tuple
 import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
@@ -18,10 +17,10 @@ class MarketDBClient:
         query = """
         CREATE TABLE IF NOT EXISTS daily_prices (
             symbol TEXT,
-            trade_date DATE,
+            date DATE,
             adj_close REAL,
             daily_return REAL,
-            PRIMARY KEY (symbol, trade_date)
+            PRIMARY KEY (symbol, date)
         );
         """
         try:

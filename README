@@ -1,16 +1,41 @@
+# AlphaRisk-Engine 📈
+
+An automated, end-to-end ETL pipeline and risk analytics engine designed for quantitative financial data. 
+
+This project demonstrates **Software Engineering Best Practices** by decoupling data ingestion, transformation, persistence, and mathematical computation into modular, testable components. It fetches real market data, cleanses and normalizes it, stores it in an SQL database, and computes key portfolio risk exposures.
+
+## 🚀 Key Features & Engineering Practices
+
+- **Robust ETL Pipeline**: Seamlessly extracts data from APIs, transforms it using Pandas (forward-filling, winsorization), and loads it into a relational SQL database.
+- **Type Hinting & Docstrings**: Fully typed codebase (PEP 484) for better readability and static analysis.
+- **Defensive Programming**: Comprehensive logging, exception handling, and schema validation.
+- **Test-Driven (TDD)**: Unit testing implemented via `pytest` to guarantee the reliability of core mathematical models.
+- **Modular Architecture**: Clean separation of concerns (Data Fetcher $\rightarrow$ Processor $\rightarrow$ DB Client $\rightarrow$ Risk Engine).
+
+## 🛠️ Tech Stack
+
+- **Language**: Python 3.10+
+- **Data Processing**: Pandas, NumPy
+- **Database**: SQLite (SQL) - *Easily extensible to PostgreSQL*
+- **Testing**: Pytest
+- **Data Source**: `yfinance` (Yahoo Finance API)
+
+## 📂 Project Structure
+
+```text
 alpha_risk_engine/
-├── data/                   # 本地缓存数据 (通过 .gitignore 忽略)
-├── src/                    # 核心源代码
+├── data/                   # Local data cache (Ignored via .gitignore)
+├── src/                    # Core source code
 │   ├── __init__.py
-│   ├── config.py           # 环境配置、日志设置
-│   ├── db_client.py        # SQL 数据库连接与建表
-│   ├── data_fetcher.py     # 获取真实数据 (yfinance / IBKR API)
-│   ├── processor.py        # Pandas 数据清洗与异常值处理
-│   └── risk_metrics.py     # 因子暴露与风险指标数学计算
-├── tests/                  # Pytest 单元测试
+│   ├── config.py           # Environment and logging configurations
+│   ├── db_client.py        # SQL database connection and schema management
+│   ├── data_fetcher.py     # API integration for raw market data
+│   ├── processor.py        # Pandas data cleaning, normalization, and outlier handling
+│   └── risk_metrics.py     # Mathematical engine for factor exposures (Beta, VaR)
+├── tests/                  # Pytest unit test suite
 │   ├── __init__.py
-│   ├── test_processor.py
-│   └── test_risk_metrics.py
-├── .gitignore              # 忽略 __pycache__, .db, .env 等
-├── requirements.txt        # 依赖包管理
-└── README.md               # 英文说明文档 (对标开源项目)
+│   ├── test_processor.py   # Tests for data cleaning edge cases
+│   └── test_risk_metrics.py# Tests for financial math accuracy
+├── .gitignore              # Ignores __pycache__, .db, virtual environments
+├── requirements.txt        # Project dependencies
+└── README.md               # Project documentation
