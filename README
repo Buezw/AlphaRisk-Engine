@@ -1,0 +1,16 @@
+alpha_risk_engine/
+├── data/                   # 本地缓存数据 (通过 .gitignore 忽略)
+├── src/                    # 核心源代码
+│   ├── __init__.py
+│   ├── config.py           # 环境配置、日志设置
+│   ├── db_client.py        # SQL 数据库连接与建表
+│   ├── data_fetcher.py     # 获取真实数据 (yfinance / IBKR API)
+│   ├── processor.py        # Pandas 数据清洗与异常值处理
+│   └── risk_metrics.py     # 因子暴露与风险指标数学计算
+├── tests/                  # Pytest 单元测试
+│   ├── __init__.py
+│   ├── test_processor.py
+│   └── test_risk_metrics.py
+├── .gitignore              # 忽略 __pycache__, .db, .env 等
+├── requirements.txt        # 依赖包管理
+└── README.md               # 英文说明文档 (对标开源项目)
