@@ -1,0 +1,10 @@
+{
+  "max_annualized_vol": 0.20,
+  "max_var_1d_95": 0.03,
+  "max_specific_var_ratio": 0.60,
+  "max_single_stock_risk_pct": 0.35,
+  "max_factor_exposure": {
+    "MKT": 1.5,
+    "MOM": 0.8
+  }
+}

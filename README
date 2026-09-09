@@ -8,14 +8,17 @@ An end-to-end, multi-factor portfolio risk analytics platform: a pipeline that i
 
 **Data pipeline** ([main.py](main.py)) — pulls the live S&P 500 constituent list and daily quotes (`yfinance`), cleans and normalizes them, fetches the Fama-French/Carhart multi-factor return series, and batch-solves a six-factor OLS regression (Market, Size, Value, Profitability, Investment, Momentum) for every ticker via a hand-rolled linear-algebra engine (with Ridge regularization for ill-conditioned matrices). Everything is persisted to a SQLite database using a narrow-table schema, so the factor model can be extended with new factors without an `ALTER TABLE`.
 
-**Risk terminal** ([app.py](app.py)) — a Streamlit app where you build a custom portfolio (search/add tickers, bulk-add by sector, or start from a default basket) and get, live:
+**Risk terminal** ([app.py](app.py)) — a Streamlit app covering the full passive factor-allocation workflow, live, with no CLI or file round-trip required:
 
+- **Screener** — filter the universe by named factor-tilt presets (value/quality/low_vol/momentum/defensive) or custom factor bounds, capped per sector, then add candidates straight into Holdings.
 - **Holdings & Exposures** — per-stock factor loadings, sector composition, weight editor.
 - **Active Risk** (vs. SPY) — tracking error, active factor tilts (Δβ), style-vs-stock-picking attribution, factor/specific variance split.
 - **Absolute Risk** — annualized volatility, systematic vs. idiosyncratic risk share, portfolio-level factor exposure (`B_p = Bᵀw`), and total variance decomposition, organized into tabs:
   - *Factor Exposure* — portfolio-level six-factor profile + per-stock factor loadings matrix.
   - *Risk Decomposition* — variance pie chart, **Marginal Risk Contribution** (Euler decomposition of volatility using the full covariance matrix `Σ = B Σ_F Bᵀ + D`, not just isolated betas — surfaces holdings whose correlation with the rest of the book makes them punch above their capital weight), and **Value at Risk / Conditional VaR** (parametric Gaussian VaR & Expected Shortfall at configurable confidence/horizon).
   - *Correlation* — a pairwise holdings correlation heatmap derived from the same full covariance matrix, with an auto-generated "most/least correlated pair" narrative.
+  - *Risk Budget* — set your own limits (max vol, VaR, concentration, per-factor tilt) once and get a live pass/fail check against the current holdings — the in-app version of "periodic monitoring."
+- **Strategy** — weekly momentum signal and backtest, including a development-vs-holdout split so a rule that only looked good on the pooled backtest doesn't get mistaken for a validated edge.
 - **Rule-based narration** — every chart ships with a plain-language diagnostic (`src/risk_narrator.py`): no LLM involved, a deterministic, auditable text layer that explains what each number means and why it matters, color-coded to match the charts.
 
 ## 🏗️ Architecture
@@ -58,17 +61,27 @@ yfinance / Fama-French  ──▶  MarketDataFetcher  ──▶  FinancialDataCl
 ```text
 AlphaRisk-Engine/
 ├── main.py                        # ETL + factor-regression pipeline entry point
-├── app.py                         # Streamlit risk terminal (Holdings / Active Risk / Absolute Risk)
+├── app.py                         # Streamlit risk terminal (Holdings / Active / Absolute Risk / Strategy)
+├── fetch_backtest_history.py      # One-off fetch of long-horizon price history for backtesting
+├── screen_stocks.py                # CLI: factor-tilt stock screening (step 3 of the workflow below)
+├── run_backtest_report.py          # CLI: momentum in/out-of-sample + VaR-backtest diligence report (step 5)
+├── monitor_portfolio.py            # CLI: risk-budget check for periodic monitoring/rebalancing (step 7)
+├── holdings.example.json           # Example {symbol: weight} portfolio for the CLIs above
+├── risk_budget.example.json        # Example risk-budget limits for monitor_portfolio.py
 ├── requirements.txt
 ├── src/
 │   ├── data_fetcher.py            # yfinance + Fama-French API integration
-│   ├── cleaner.py                 # Raw-quote cleaning and normalization
+│   ├── cleaner.py                 # Raw-quote cleaning and normalization (per-symbol outlier clipping)
 │   ├── factor_model.py            # FactorExposureEngine: OLS via normal equations + Ridge fallback
 │   ├── db_client.py               # RiskDatabase: SQLite narrow-table schema and persistence
 │   ├── risk_decomposition.py      # RiskDecompositionEngine: variance decomposition, MCTR, VaR/CVaR, correlation
-│   └── risk_narrator.py           # Rule-based, plain-language diagnostics for every chart
-├── tests/
-│   └── test_risk_math.py          # Mathematical-identity tests for the risk engine
+│   ├── risk_narrator.py           # Rule-based, plain-language diagnostics for every chart
+│   ├── strategy_backtest.py       # MomentumBacktester: weekly cross-sectional momentum backtest
+│   ├── var_backtest.py            # VarBacktester: Kupiec proportion-of-failures VaR backtest
+│   ├── stock_screener.py          # StockScreener: factor-tilt filtering over the exposure universe
+│   ├── backtest_report.py         # BacktestReport: in/out-of-sample momentum split + VaR check glue
+│   └── portfolio_monitor.py       # PortfolioMonitor: recompute risk + check against a risk budget
+├── tests/                         # One test module per src/ module above
 └── factor_risk.db                 # SQLite database (generated by main.py)
 ```
 
@@ -84,6 +97,29 @@ python main.py
 streamlit run app.py
 ```
 
+### A complete passive factor-allocation workflow
+
+Steps 3 (screening), 4 (portfolio construction), 5 (backtest validation) and 7 (risk-budget
+monitoring) all live inside `streamlit run app.py` — no CLI, no JSON hand-off between them. Use
+the **Screener** page to filter by factor tilt and add candidates to **Holdings**, inspect risk
+in **Active/Absolute Risk**, sanity-check the momentum rule's development-vs-holdout split in
+**Strategy**, and set your limits in Absolute Risk's **Risk Budget** tab. None of this predicts
+returns — it filters, decomposes, and checks risk against limits you set.
+
+```bash
+python fetch_backtest_history.py --years 5   # one-off/occasional: populates the Strategy backtest
+streamlit run app.py
+```
+
+The equivalent CLI scripts (`screen_stocks.py`, `run_backtest_report.py`, `monitor_portfolio.py`)
+still exist and call the exact same `src/` logic — they're for **headless/automated** use where
+opening a browser isn't the point, chiefly `monitor_portfolio.py` in a cron job so a risk-budget
+breach can page you without anyone having the app open:
+
+```bash
+0 7 * * 1-5 cd /path/to/AlphaRisk-Engine && python main.py && python monitor_portfolio.py --holdings holdings.json --budget risk_budget.json
+```
+
 ## 🧪 Testing
 
 ```bash
@@ -94,5 +130,7 @@ Covers the OLS solver's ability to recover known synthetic parameters, and the m
 
 ## ⚠️ Known Limitations
 
-- **Parametric VaR/CVaR** assumes normally distributed daily returns with zero drift — a short-horizon simplification, not a substitute for historical or Monte Carlo simulation on fat-tailed portfolios.
+- **Parametric VaR/CVaR** assumes normally distributed daily returns with zero drift — a short-horizon simplification, not a substitute for historical or Monte Carlo simulation on fat-tailed portfolios. `run_backtest_report.py` / app.py's VaR Backtest tab exist specifically to check whether that assumption is actually holding for a given portfolio — don't skip that check.
+- The momentum strategy (`src/strategy_backtest.py`, app.py's Strategy page) is a starting point to investigate, not a validated trading signal — it carries survivorship bias (today's S&P 500 list applied to past prices) and a short backtest window unless `fetch_backtest_history.py` has been run with several years of history.
 - `api_server.py` (a FastAPI endpoint for a prospective external frontend) and `src/visualizer.py` (static HTML tear-sheet export) are early-stage/experimental and not wired into the main Streamlit workflow yet.
+- The factor-based screener (`screen_stocks.py`) ranks by *exposure to a style factor*, not by predicted return — it narrows the universe for a human decision, it does not make the decision.
